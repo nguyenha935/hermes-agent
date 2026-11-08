@@ -182,7 +182,7 @@ _MEDIA_KIND_KEYS = {
 from gateway.platforms.event import MessageEvent, MessageType, ProcessingOutcome
 from plugins.platforms.telegram.telegram_entities import expand_link_entities
 from plugins.platforms.telegram.telegram_held_inbound import TelegramHeldInboundMixin
-from plugins.platforms.telegram.telegram_media_group import flush_media_group_event, queue_media_group_event, tracking_album_item
+from plugins.platforms.telegram.telegram_media_group import flush_media_group_event, queue_media_group_event, tracking_album_items
 from plugins.platforms.telegram.telegram_ids import normalize_telegram_chat_id, parse_send_target, parse_telegram_message_id
 from plugins.platforms.telegram.telegram_resolved_prompt import edit_keeping_prompt
 from plugins.platforms.telegram.telegram_topic_transfer import TopicTransferFn, apply_root_dm_topic_transfer
@@ -6816,12 +6816,9 @@ class TelegramAdapter(TelegramHeldInboundMixin, TelegramTopicRoutingMixin, BaseP
             await self._surface_media_cache_failure(msg, event, "attachment", e, display_name=getattr(doc, "file_name", None) or None)
         return False
 
+    @tracking_album_items
     async def _handle_media_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle incoming media; an album item counts as in flight until merged, so its album waits for it."""
-        with tracking_album_item(self, self._effective_update_message(update)):
-            await self._process_media_message(update)
-
-    async def _process_media_message(self, update: Update) -> None:
+        """Handle incoming media messages, downloading images to local cache."""
         msg = update.message
         if not msg:
             return
