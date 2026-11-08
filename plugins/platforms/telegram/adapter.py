@@ -187,6 +187,7 @@ from plugins.platforms.telegram.telegram_resolved_prompt import edit_keeping_pro
 from plugins.platforms.telegram.telegram_topic_transfer import TopicTransferFn, apply_root_dm_topic_transfer
 from plugins.platforms.telegram.telegram_network import (
     SEED_FALLBACK_IPS, TelegramFallbackTransport, discover_fallback_ips, parse_fallback_ip_env, tcp_keepalive_socket_options)
+from plugins.platforms.telegram.telegram_group_observe import apply_group_observe_attribution
 from plugins.platforms.telegram.telegram_topic_routing import TelegramTopicRoutingMixin
 from utils import env_float, env_int
 
@@ -6221,25 +6222,7 @@ class TelegramAdapter(TelegramHeldInboundMixin, TelegramTopicRoutingMixin, BaseP
             "and use observed context only when the current message asks for it.")
 
     def _apply_telegram_group_observe_attribution(self, event: MessageEvent) -> MessageEvent:
-        """Align triggered group turns with observed-history attribution."""
-        if not self._telegram_observe_unmentioned_group_messages():
-            return event
-        raw_message = getattr(event, "raw_message", None)
-        if not raw_message or not self._is_group_chat(raw_message):
-            return event
-        allowed = self._telegram_observe_allowed_chats()
-        if not allowed or self._chat_id_str(raw_message) not in allowed:
-            return event
-        observe_prompt = self._telegram_group_observe_channel_prompt()
-        channel_prompt = f"{event.channel_prompt}\n\n{observe_prompt}" if event.channel_prompt else observe_prompt
-        if event.message_type == MessageType.COMMAND:
-            # Commands keep user_id so _check_slash_access can identify the sender, but act on the
-            # shared session the observed transcript and text turns use.
-            return dataclasses.replace(
-                event, source=dataclasses.replace(event.source, shared_session=True), channel_prompt=channel_prompt)
-        return dataclasses.replace(
-            event, text=self._telegram_group_observe_attributed_text(event),
-            source=self._telegram_group_observe_shared_source(event.source), channel_prompt=channel_prompt)
+        return apply_group_observe_attribution(self, event)
 
     def _media_message_type(self, msg: Message) -> MessageType:
         """Classify a Telegram media message into a MessageType (first present attachment wins)."""
